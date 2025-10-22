@@ -5,7 +5,7 @@ from app.utils.get_parquet_path import get_parquet_path
 from app.utils.db_engine import get_engine
 from de_transform import clean_column_names, prepare_dataframe
 from de_extract import get_base_path
-from typing import Dict, List, Optional
+from typing import List, Optional
 from pathlib import Path
 
 engine = get_engine()
@@ -22,7 +22,7 @@ all_files = {
     "rawarchived": base_path / "all_longtermrentals.xlsx",
 }
 
-def save_selected_to_parquet(all_files: Dict[str, Path], selection: Optional[List[str]] = None):
+def save_selected_to_parquet(selection = None):
     selection = selection or list(all_files.keys())
     for name in selection:
         xlsx_path = all_files[name]
@@ -63,3 +63,20 @@ def upload_selected_to_bigquery(selection: Optional[List[str]] = None, location:
         df = pd.read_parquet(pq_path)
         upload_df_to_bq(df, table_name=name, location=location)
         print(f"✅ {name} uploaded to BigQuery ({location}).")
+
+from pathlib import Path
+
+def clean_tmp_files():
+    base_path = Path("/tmp")
+    patterns = ["all_*.xlsx", "*.parquet"]
+
+    removed = 0
+    for pattern in patterns:
+        for file_path in base_path.glob(pattern):
+            try:
+                file_path.unlink()
+                removed += 1
+            except Exception as e:
+                print(f"⚠️ Could not delete {file_path.name}: {e}")
+    print(f"🧹 Removed {removed} temporary ETL files from {base_path}")
+

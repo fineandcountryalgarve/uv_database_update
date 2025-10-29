@@ -19,12 +19,8 @@ def prepare_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     # Convert numerics to string for consistency with BQ/PG (matches your original logic)
     for column in df.columns:
         if df[column].dtype == 'object':
-            # If any numeric-like values in object col, coerce to string
-            if df[column].apply(lambda x: isinstance(x, (int, float))).any():
-                df[column] = df[column].astype(str)
-        elif df[column].dtype in ['float64', 'int64']:
             df[column] = df[column].astype(str)
-
     df = standardize_date_columns(df)
     df = df.where(pd.notnull(df), None)
+    print(f"After prepare_dataframe: {len(df)}")
     return df

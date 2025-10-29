@@ -22,6 +22,11 @@ all_files = {
     "rawarchived": base_path / "all_longtermrentals.xlsx",
 }
 
+xlsx_path = all_files["rawsellers"]
+print(f"📄 Reading file for rawsellers: {xlsx_path}")
+df = pd.read_excel(xlsx_path)
+print(f"📊 Rows loaded: {len(df)}")
+
 def save_selected_to_parquet(selection = None):
     selection = selection or list(all_files.keys())
     for name in selection:
@@ -63,8 +68,6 @@ def upload_selected_to_bigquery(selection: Optional[List[str]] = None, location:
         df = pd.read_parquet(pq_path)
         upload_df_to_bq(df, table_name=name, location=location)
         print(f"✅ {name} uploaded to BigQuery ({location}).")
-
-from pathlib import Path
 
 def clean_tmp_files():
     base_path = Path("/tmp")

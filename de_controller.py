@@ -1,5 +1,6 @@
 from de_extract import stage_inputs, get_base_path
-from de_load import save_selected_to_parquet, upload_selected_to_postgresql, upload_selected_to_bigquery, clean_tmp_files
+from de_load import save_selected_to_parquet, get_parquet_path, upload_selected_to_postgresql, upload_selected_to_bigquery, clean_tmp_files
+import pandas as pd
 
 def db_extract():
     base_path = get_base_path()

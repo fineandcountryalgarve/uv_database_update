@@ -42,7 +42,10 @@ def stage_inputs(base_path: Path = base_path,
 
     # Step 2: Download existing all_* files (other tables)
     for expected in EXPECTED_OUTPUT_FILES:
-        found = list_files_in_folder(output_folder_id, name_contains=expected)
+        # EXACT match instead of substring match
+        found = [f for f in list_files_in_folder(output_folder_id) 
+                    if f["name"] == expected]
+        
         if found:
             file_id = found[0]["id"]
             download_file_from_drive(file_id, str(base_path / expected))

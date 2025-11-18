@@ -82,23 +82,32 @@ def preview_data(df: pd.DataFrame, num_rows: int = 10):
     print(f"\n📊 Total records: {len(df)}")
     print(f"📋 Columns: {list(df.columns)}")
     
-    # Data quality checks
-    print("\n🔍 Data Quality Checks:")
-    print(f"   • Emails with null values: {df['Email'].isna().sum()}")
-    print(f"   • Emails with empty strings: {(df['Email'] == '').sum()}")
-    print(f"   • Duplicate emails: {df['Email'].duplicated().sum()}")
+    # Data quality checks (only if Email column exists)
+    if 'Email' in df.columns:
+        print("\n🔍 Data Quality Checks:")
+        print(f"   • Emails with null values: {df['Email'].isna().sum()}")
+        print(f"   • Emails with empty strings: {(df['Email'] == '').sum()}")
+        print(f"   • Duplicate emails: {df['Email'].duplicated().sum()}")
     
-    # Client nature distribution
-    print("\n📈 Client Nature Distribution:")
-    print(df['Client nature'].value_counts().to_string())
+    # Client nature distribution (only if column exists)
+    if 'Client nature' in df.columns:
+        print("\n📈 Client Nature Distribution:")
+        print(df['Client nature'].value_counts().to_string())
     
-    # Language distribution
-    print("\n🌍 Language Distribution:")
-    print(df['Speaks'].value_counts().to_string())
+    # Language distribution (only if column exists)
+    if 'Speaks' in df.columns:
+        print("\n🌍 Language Distribution:")
+        print(df['Speaks'].value_counts().to_string())
     
-    # Tags distribution
-    print("\n🏷️ Tags Distribution:")
-    print(df['Tags'].value_counts().to_string())
+    # Tags distribution (only if column exists)
+    if 'Tags' in df.columns:
+        print("\n🏷️ Tags Distribution:")
+        print(df['Tags'].value_counts().to_string())
+    
+    # Source distribution (if _source column exists - useful for debugging)
+    if '_source' in df.columns:
+        print("\n📍 Data Source Distribution:")
+        print(df['_source'].value_counts().to_string())
     
     # Sample records
     print(f"\n📄 First {min(num_rows, len(df))} records:")

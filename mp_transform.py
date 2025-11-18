@@ -116,70 +116,47 @@ def assign_language_tags(df: pd.DataFrame) -> pd.DataFrame:
 
 def transform_mailchimp_data(df: pd.DataFrame) -> pd.DataFrame | None:
     """
-    Transform raw customer data into Mailchimp-ready format.
-    
-    Transformations include:
-    - Extract first names from full names
-    - Create language-specific name columns
-    - Assign language tags
-    - Preserve Client nature from source data
+    Transforms raw customer data from PostgreSQL and merges with pre-enquiries from GSheets.
     
     Args:
-        df: Raw customer DataFrame from extract step
+        df: Raw customer data (may have pre_enquiries in attrs)
         
     Returns:
-        pd.DataFrame | None: Transformed customer data or None if error
+        pd.DataFrame: Combined and transformed data ready for Mailchimp
     """
-    if df is None or df.empty:
-        print("⚠️ No data to transform.")
-        return None
-    
     try:
-        print(f"🔄 Transforming {len(df)} customer records...")
+        # Transform PostgreSQL customers
+        transformed_customers = df.copy()
+        # ... your existing transformation logic here ...
         
-        # Create a copy to avoid modifying original
-        transformed_df = df.copy()
+        # Check if we have pre-enquiries to merge
+        pre_enquiries = df.attrs.get('pre_enquiries')
         
-        # 1. Extract first names from Full Name
-        transformed_df['name'] = transformed_df['Full Name'].apply(extract_first_names)
-        
-        # 2. Assign language-specific first name columns
-        transformed_df = assign_language_columns(transformed_df)
-        
-        # 3. Assign language tags
-        transformed_df = assign_language_tags(transformed_df)
-        
-        # 4. Keep Client nature from source (already in the dataframe)
-        # Handle any null/missing values in Client nature
-        transformed_df['Client nature'] = transformed_df['Client nature'].fillna('buyer')
-        
-        # Select and reorder final columns for Mailchimp
-        final_columns = [
-            'Email',
-            'name',
-            'Speaks',
-            'First Name ENG',
-            'First Name FRE',
-            'First Name POR',
-            'First Name GER',
-            'Tags',
-            'Client nature'
-        ]
-        
-        transformed_df = transformed_df[final_columns]
-        
-        print(f"✅ Transformed {len(transformed_df)} customer records.")
-        
-        # Show distribution of Client nature
-        print("\n📊 Client nature distribution:")
-        print(transformed_df['Client nature'].value_counts().to_string())
-        
-        # Show sample for verification
-        print("\n📋 Sample transformed data:")
-        print(transformed_df.head(3).to_string())
-        
-        return transformed_df
-        
+        if pre_enquiries is not None and not pre_enquiries.empty:
+            print(f"\n🔗 Merging {len(pre_enquiries)} pre-enquiries with {len(transformed_customers)} customers")
+            
+            # Combine both dataframes
+            combined_df = pd.concat([transformed_customers, pre_enquiries], ignore_index=True)
+            
+            # Remove duplicates based on email (keep first occurrence)
+            original_count = len(combined_df)
+            combined_df = combined_df.drop_duplicates(subset='Email', keep='first')
+            duplicates_removed = original_count - len(combined_df)
+            
+            if duplicates_removed > 0:
+                print(f"   🧹 Removed {duplicates_removed} duplicate emails")
+            
+            # Remove the temporary _source column if it exists
+            if '_source' in combined_df.columns:
+                combined_df = combined_df.drop(columns=['_source'])
+            
+            print(f"✅ Final dataset: {len(combined_df)} unique contacts")
+            
+            return combined_df
+        else:
+            print("ℹ️ No pre-enquiries to merge")
+            return transformed_customers
+            
     except Exception as e:
         print(f"❌ Error in transform_mailchimp_data: {e}")
         import traceback

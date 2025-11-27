@@ -127,13 +127,42 @@ def transform_mailchimp_data(df: pd.DataFrame) -> pd.DataFrame | None:
     try:
         # Transform PostgreSQL customers
         transformed_customers = df.copy()
-        # ... your existing transformation logic here ...
+        
+        # Extract first names from Full Name
+        if 'Full Name' in transformed_customers.columns:
+            transformed_customers['name'] = transformed_customers['Full Name'].apply(extract_first_names)
+        
+        # Assign language-specific first name columns
+        transformed_customers = assign_language_columns(transformed_customers)
+        
+        # Assign language tags (THIS WAS MISSING!)
+        transformed_customers = assign_language_tags(transformed_customers)
+        
+        # Ensure all required columns exist
+        required_columns = [
+            'Email', 'Client nature', 'Speaks', 
+            'First Name FRE', 'First Name POR', 'First Name GER', 
+            'First Name ENG', 'Tags'
+        ]
+        
+        for col in required_columns:
+            if col not in transformed_customers.columns:
+                transformed_customers[col] = ''
         
         # Check if we have pre-enquiries to merge
         pre_enquiries = df.attrs.get('pre_enquiries')
         
         if pre_enquiries is not None and not pre_enquiries.empty:
             print(f"\n🔗 Merging {len(pre_enquiries)} pre-enquiries with {len(transformed_customers)} customers")
+            
+            # Ensure pre-enquiries also has all required columns
+            for col in required_columns:
+                if col not in pre_enquiries.columns:
+                    pre_enquiries[col] = ''
+            
+            # Select only required columns from both dataframes (in same order)
+            transformed_customers = transformed_customers[required_columns]
+            pre_enquiries = pre_enquiries[required_columns]
             
             # Combine both dataframes
             combined_df = pd.concat([transformed_customers, pre_enquiries], ignore_index=True)
@@ -146,16 +175,12 @@ def transform_mailchimp_data(df: pd.DataFrame) -> pd.DataFrame | None:
             if duplicates_removed > 0:
                 print(f"   🧹 Removed {duplicates_removed} duplicate emails")
             
-            # Remove the temporary _source column if it exists
-            if '_source' in combined_df.columns:
-                combined_df = combined_df.drop(columns=['_source'])
-            
             print(f"✅ Final dataset: {len(combined_df)} unique contacts")
             
             return combined_df
         else:
             print("ℹ️ No pre-enquiries to merge")
-            return transformed_customers
+            return transformed_customers[required_columns]
             
     except Exception as e:
         print(f"❌ Error in transform_mailchimp_data: {e}")

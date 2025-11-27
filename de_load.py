@@ -2,7 +2,6 @@ import pandas as pd
 from app.utils.db_engine import get_engine, kill_stale_sessions
 from app.utils.get_base_path import get_base_path
 from app.utils.bq_pandas_helper import upload_df_to_bq
-from typing import Dict, List, Optional
 from pathlib import Path
 from sqlalchemy import text
 

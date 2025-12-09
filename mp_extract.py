@@ -47,14 +47,15 @@ def extract_pre_enquiries(start_date, end_date) -> pd.DataFrame | None:
         print("\n📋 Extracting pre-enquiries from Google Sheets...")
         
         # Read both sheets
-        carousel_id = get_gsheets_id("fb_carousel")
         properties_id = get_gsheets_id("fb_properties")
         print("\n📋 Extracting pre-enquiries from Google Sheets...")
-        df_pre_enquiries = read_gsheet_to_df(carousel_id, "Sheet1")
-        df_pre_enquiries_2 = read_gsheet_to_df(properties_id, "Sheet1")
+        df_pre_enquiries = read_gsheet_to_df(properties_id, "featured_property")
+        df_pre_enquiries_2 = read_gsheet_to_df(properties_id, "no_viewing")
+        df_pre_enquiries_3 = read_gsheet_to_df(properties_id, "viewing")
         
         # Combine both dataframes
-        fb_pre_enquiries = pd.concat([df_pre_enquiries, df_pre_enquiries_2], ignore_index=True)
+        fb_list = [df_pre_enquiries, df_pre_enquiries_2, df_pre_enquiries_3]
+        fb_pre_enquiries = pd.concat(fb_list, ignore_index=True)
         
         if fb_pre_enquiries.empty:
             print("⚠️ No pre-enquiries data found")

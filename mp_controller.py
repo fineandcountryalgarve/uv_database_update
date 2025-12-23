@@ -4,9 +4,9 @@ Orchestrates extract → transform → load workflow.
 """
 import pandas as pd
 import argparse
-from mp_extract import extract_mailchimp_data
-from mp_transform import transform_mailchimp_data
-from mp_load import (
+from database.mp_extract import extract_mailchimp_data
+from database.mp_transform import transform_mailchimp_data
+from database.mp_load import (
     load_to_mailchimp,
     load_unsubscribed_to_google_sheets,
     fetch_and_tag_unsubscribed
@@ -257,6 +257,37 @@ def main():
     print("\n" + "="*60)
     print("🏁 MAILCHIMP ETL PIPELINE FINISHED")
     print("="*60 + "\n")
+
+
+def mp_update():
+    """
+    Simplified entry point for Airflow DAG.
+    Runs the full ETL pipeline: Extract → Transform → Load
+
+    Returns:
+        bool: True if pipeline completed successfully
+    """
+    print("\n🚀 MAILCHIMP ETL PIPELINE STARTED\n")
+
+    # Step 1: Extract
+    raw_df = extract()
+
+    # Step 2: Transform
+    transformed_df = transform(raw_df)
+
+    # Step 3: Load
+    if transformed_df is not None and not transformed_df.empty:
+        success = load(transformed_df, dry_run=False)
+    else:
+        print("❌ Pipeline failed: No data to process.")
+        success = False
+
+    if success:
+        print("\n✅ Mailchimp pipeline completed successfully!")
+    else:
+        print("\n⚠️ Mailchimp pipeline completed with errors.")
+
+    return success
 
 
 if __name__ == "__main__":

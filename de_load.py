@@ -41,22 +41,20 @@ def save_selected_to_sql(all_files, selection=None):
                 print(f"✅ {name}: {len(df):,} rows refreshed in bronze.{name}")
 
         except Exception as e:
-            print(f"⚠️ {name}: structure mismatch or missing table, recreating it...")
-            # Start a *new* transaction for the recreation
-            with engine.begin() as conn:
-                conn.execute(text(f"DROP TABLE IF EXISTS bronze.{name} CASCADE;"))
-                df.to_sql(
-                    name,
-                    con=conn,
-                    schema="bronze",
-                    if_exists="replace",
-                    index=False
-                )
-                print(f"✅ {name}: table recreated with {len(df):,} rows.")
-
-        # If both fail, print error for debugging
-        except Exception as e2:
-            print(f"❌ Error loading {name}: {e2}")
+            print(f"⚠️ {name}: structure mismatch or missing table, attempting recreation...")
+            try:
+                with engine.begin() as conn:
+                    conn.execute(text(f"DROP TABLE IF EXISTS bronze.{name};"))
+                    df.to_sql(
+                        name,
+                        con=conn,
+                        schema="bronze",
+                        if_exists="replace",
+                        index=False
+                    )
+                    print(f"✅ {name}: table recreated with {len(df):,} rows.")
+            except Exception as e2:
+                print(f"❌ Error loading {name}: {e2}")
 
 def upload_selected_to_bigquery(all_files, selection=None, dataset="bronze", location="EU"):
     selection = selection or list(all_files.keys())

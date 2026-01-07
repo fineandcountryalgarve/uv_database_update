@@ -5,7 +5,6 @@ Refreshes materialized view and extracts raw customer data from PostgreSQL.
 from sqlalchemy import text
 import pandas as pd
 from app.utils.refresh_view import refresh_mv
-from app.utils.date_helper import get_dynamic_date_range
 from app.utils.db_engine import get_engine
 from app.utils.gsheets import read_gsheet_to_df
 from app.utils.gsheets_worksheets import get_gsheets_id
@@ -140,24 +139,30 @@ def process_crm_data(df):
     return processed
 
 
-def extract_mailchimp_data() -> pd.DataFrame | None:
+def extract_mailchimp_data(target_date=None) -> pd.DataFrame | None:
     """
     Extracts raw customer data from gold.customers_mv AND pre-enquiries from Google Sheets.
     Combines both sources into a single dataframe.
-    
+
+    Args:
+        target_date: Date to extract data for (filters by this single day).
+                     If None, skips extraction.
+
     Returns:
         pd.DataFrame | None: Combined customer data or None if error/no data
     """
     engine = get_engine()
-    
+
     try:
-        # Get date range for filtering (used by both sources)
-        start_date, end_date = get_dynamic_date_range()
-        if not start_date or not end_date:
-            print("⚠️ Could not determine date range.")
+        if target_date is None:
+            print("⚠️ No target_date provided.")
             return None
-            
-        print(f"📅 Date range: {start_date} to {end_date}")
+
+        # Use the same date for start and end (single day filter)
+        start_date = target_date
+        end_date = target_date
+
+        print(f"📅 Target date: {target_date}")
         
         # ==========================================
         # Extract from PostgreSQL (gold.customers_mv)

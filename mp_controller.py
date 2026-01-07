@@ -13,24 +13,27 @@ from database.mp_load import (
 )
 
 
-def extract() -> pd.DataFrame | None:
+def extract(target_date=None) -> pd.DataFrame | None:
     """
     EXTRACT STEP: Refresh materialized view and extract raw customer data.
-    
+
+    Args:
+        target_date: Date to extract data for (filters by this single day)
+
     Returns:
         pd.DataFrame | None: Raw customer data or None if error
     """
     print("\n" + "="*60)
     print("📥 EXTRACT STEP: Fetching customer data from PostgreSQL")
     print("="*60)
-    
-    df = extract_mailchimp_data()
-    
+
+    df = extract_mailchimp_data(target_date=target_date)
+
     if df is not None:
         print(f"\n✅ Extract complete: {len(df)} raw records")
     else:
         print("\n⚠️ Extract returned no data")
-    
+
     return df
 
 

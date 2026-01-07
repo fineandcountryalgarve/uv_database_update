@@ -13,7 +13,7 @@ from database.mp_load import (
 )
 
 
-def extract(target_date=None) -> pd.DataFrame | None:
+def extract(target_date=None) -> dict | None:
     """
     EXTRACT STEP: Refresh materialized view and extract raw customer data.
 
@@ -21,7 +21,7 @@ def extract(target_date=None) -> pd.DataFrame | None:
         target_date: Date to extract data for (filters by this single day)
 
     Returns:
-        pd.DataFrame | None: Raw customer data or None if error
+        dict | None: Serialized customer data for XCom transfer, or None if error
     """
     print("\n" + "="*60)
     print("📥 EXTRACT STEP: Fetching customer data from PostgreSQL")
@@ -31,38 +31,58 @@ def extract(target_date=None) -> pd.DataFrame | None:
 
     if df is not None:
         print(f"\n✅ Extract complete: {len(df)} raw records")
+        # Serialize to dict for XCom transfer
+        result = {"customers": df.to_dict(orient="records")}
+        # Include pre_enquiries if present
+        if hasattr(df, 'attrs') and 'pre_enquiries' in df.attrs:
+            pre_enq = df.attrs['pre_enquiries']
+            if pre_enq is not None:
+                result["pre_enquiries"] = pre_enq.to_dict(orient="records")
+        return result
     else:
         print("\n⚠️ Extract returned no data")
+        return None
 
-    return df
 
-
-def transform(df: pd.DataFrame | None) -> pd.DataFrame | None:
+def transform(raw_data: dict | pd.DataFrame | None) -> dict | None:
     """
     TRANSFORM STEP: Apply Python transformations to raw data.
-    
+
     Args:
-        df: Raw customer data from extract step
-        
+        raw_data: Dict from extract (XCom) or DataFrame (direct call)
+
     Returns:
-        pd.DataFrame | None: Transformed data ready for loading
+        dict | None: Serialized transformed data for XCom transfer
     """
     print("\n" + "="*60)
     print("🔄 TRANSFORM STEP: Transforming customer data")
     print("="*60)
-    
-    if df is None or df.empty:
+
+    if raw_data is None:
         print("⚠️ No data to transform")
         return None
-    
+
+    # Handle dict input from XCom
+    if isinstance(raw_data, dict):
+        df = pd.DataFrame(raw_data["customers"])
+        # Restore pre_enquiries if present
+        if "pre_enquiries" in raw_data:
+            df.attrs['pre_enquiries'] = pd.DataFrame(raw_data["pre_enquiries"])
+    else:
+        df = raw_data
+
+    if df.empty:
+        print("⚠️ No data to transform")
+        return None
+
     transformed_df = transform_mailchimp_data(df)
-    
+
     if transformed_df is not None:
         print(f"\n✅ Transform complete: {len(transformed_df)} records ready")
+        return transformed_df.to_dict(orient="records")
     else:
         print("\n⚠️ Transform failed")
-    
-    return transformed_df
+        return None
 
 
 def preview_data(df: pd.DataFrame, num_rows: int = 10):
@@ -151,23 +171,33 @@ def export_preview(df: pd.DataFrame, filename: str = None):
         print(f"❌ Error exporting preview: {e}")
 
 
-def load(df: pd.DataFrame | None, dry_run: bool = False) -> bool:
+def load(transformed_data: dict | list | pd.DataFrame | None, dry_run: bool = False) -> bool:
     """
     LOAD STEP: Upload transformed data to Mailchimp.
     Also processes unsubscribed contacts and exports them to Google Sheets.
-    
+
     Args:
-        df: Transformed customer data from transform step
+        transformed_data: Dict/list from transform (XCom) or DataFrame (direct call)
         dry_run: If True, skip actual loading (preview mode)
-        
+
     Returns:
         bool: True if all loads successful, False otherwise
     """
     print("\n" + "="*60)
     print("📤 LOAD STEP: Uploading data to destinations")
     print("="*60)
-    
-    if df is None or df.empty:
+
+    if transformed_data is None:
+        print("⚠️ No data to load. Skipping load step.")
+        return False
+
+    # Handle dict/list input from XCom
+    if isinstance(transformed_data, (dict, list)):
+        df = pd.DataFrame(transformed_data)
+    else:
+        df = transformed_data
+
+    if df.empty:
         print("⚠️ No data to load. Skipping load step.")
         return False
     

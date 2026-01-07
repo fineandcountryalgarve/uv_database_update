@@ -177,7 +177,7 @@ def extract_mailchimp_data(target_date=None) -> pd.DataFrame | None:
 SELECT
     "Email",
     "Full Name",
-    "Speaks",
+    "Language" AS "Speaks",
     "Client nature",
     "CreateTime"
 FROM gold.customers_mv

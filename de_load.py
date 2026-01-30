@@ -26,6 +26,27 @@ def save_selected_to_sql(all_files, selection=None):
 
         df = pd.read_excel(xlsx_path, engine="openpyxl")
 
+        # Drop new unnamed columns that don't exist in DB (junk from Excel)
+        try:
+            with engine.connect() as conn:
+                result = conn.execute(text(f"""
+                    SELECT column_name FROM information_schema.columns
+                    WHERE table_schema = 'bronze' AND table_name = '{name}'
+                """))
+                db_cols = set(row[0] for row in result)
+
+            if db_cols:
+                new_unnamed = [c for c in df.columns if str(c).startswith("Unnamed:") and str(c) not in db_cols]
+                if new_unnamed:
+                    df = df.drop(columns=new_unnamed)
+                    print(f"🧹 {name}: dropped {len(new_unnamed)} new unnamed column(s) not in schema")
+
+                new_named = [c for c in df.columns if not str(c).startswith("Unnamed:") and str(c) not in db_cols]
+                if new_named:
+                    print(f"⚠️ {name}: new named columns in Excel not in DB: {new_named}")
+        except Exception:
+            pass  # Table might not exist yet
+
         try:
             # First try to truncate + append
             with engine.begin() as conn:
@@ -41,7 +62,8 @@ def save_selected_to_sql(all_files, selection=None):
                 print(f"✅ {name}: {len(df):,} rows refreshed in bronze.{name}")
 
         except Exception as e:
-            print(f"⚠️ {name}: structure mismatch or missing table, attempting recreation...")
+            print(f"⚠️ {name}: structure mismatch or missing table: {e}")
+            print(f"    Attempting recreation...")
             try:
                 with engine.begin() as conn:
                     conn.execute(text(f"DROP TABLE IF EXISTS bronze.{name};"))

@@ -41,8 +41,9 @@ def load_to_mailchimp(df: pd.DataFrame) -> bool:
         print(f"📤 Loading {len(df)} contacts to Mailchimp...")
         
         success_count = 0
+        skipped_count = 0
         error_count = 0
-        
+
         for index, row in df.iterrows():
             # Prepare subscriber data
             subscriber_data = {
@@ -57,7 +58,7 @@ def load_to_mailchimp(df: pd.DataFrame) -> bool:
                     "CNATURE": row.get('Client nature', 'buyer')
                 }
             }
-            
+
             # Make POST request to add subscriber
             response = requests.post(
                 base_url,
@@ -65,16 +66,30 @@ def load_to_mailchimp(df: pd.DataFrame) -> bool:
                 data=json.dumps(subscriber_data),
                 headers={"Content-Type": "application/json"}
             )
-            
+
             # Check response
             if response.status_code in [200, 204]:
                 print(f"✅ Subscriber {row['Email']} added successfully.")
                 success_count += 1
-                
+
                 # Add tags
                 subscriber_hash = get_subscriber_hash(row['Email'])
                 add_tags(subscriber_hash, row.get('Tags', ''))
-                
+
+            elif response.status_code == 400:
+                # Check if it's a "Member Exists" error - skip these
+                try:
+                    error_data = response.json()
+                    if error_data.get('title') == 'Member Exists':
+                        print(f"⏭️ Skipped {row['Email']} (already in list)")
+                        skipped_count += 1
+                    else:
+                        print(f"❌ Failed to add subscriber {row['Email']}: {response.status_code}")
+                        print(f"   Error: {error_data}")
+                        error_count += 1
+                except ValueError:
+                    print(f"❌ Failed to add subscriber {row['Email']}: {response.status_code}")
+                    error_count += 1
             else:
                 print(f"❌ Failed to add subscriber {row['Email']}: {response.status_code}")
                 error_count += 1
@@ -82,8 +97,8 @@ def load_to_mailchimp(df: pd.DataFrame) -> bool:
                     print(f"   Error: {response.json()}")
                 except ValueError:
                     print("   No response content available.")
-        
-        print(f"\n📊 Mailchimp load complete: {success_count} success, {error_count} errors")
+
+        print(f"\n📊 Mailchimp load complete: {success_count} added, {skipped_count} skipped, {error_count} errors")
         return error_count == 0
         
     except Exception as e:

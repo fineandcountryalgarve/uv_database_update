@@ -71,7 +71,11 @@ def transform(raw_data: dict | pd.DataFrame | None) -> dict | None:
     else:
         df = raw_data
 
-    if df.empty:
+    # Check if we have ANY data to process (customers OR pre_enquiries)
+    pre_enquiries = df.attrs.get('pre_enquiries') if hasattr(df, 'attrs') else None
+    has_pre_enquiries = pre_enquiries is not None and not pre_enquiries.empty
+
+    if df.empty and not has_pre_enquiries:
         print("⚠️ No data to transform")
         return None
 

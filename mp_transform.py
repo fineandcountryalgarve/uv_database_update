@@ -94,10 +94,11 @@ def assign_language_columns(df: pd.DataFrame) -> pd.DataFrame:
 def assign_language_tags(df: pd.DataFrame) -> pd.DataFrame:
     """
     Create language tags based on 'Speaks' field.
-    
+    Adds 'US' tag for contacts with Country = 'United States'.
+
     Args:
-        df: DataFrame with 'Speaks' column
-        
+        df: DataFrame with 'Speaks' column and optionally 'Country' column
+
     Returns:
         DataFrame with 'Tags' column added
     """
@@ -107,10 +108,15 @@ def assign_language_tags(df: pd.DataFrame) -> pd.DataFrame:
         'Portuguese': 'POR',
         'German': 'GER',
     }
-    
+
     # Assign tags, default to 'ENG' for unknown languages
     df['Tags'] = df['Speaks'].map(tag_map).fillna('ENG')
-    
+
+    # Add 'US' tag for contacts from the United States
+    if 'Country' in df.columns:
+        us_mask = df['Country'] == 'United States'
+        df.loc[us_mask, 'Tags'] = df.loc[us_mask, 'Tags'] + ',US'
+
     return df
 
 

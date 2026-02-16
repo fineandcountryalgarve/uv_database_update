@@ -179,6 +179,7 @@ SELECT
     "Full Name",
     "Language" AS "Speaks",
     "Client nature",
+    "Country",
     "CreateTime"
 FROM gold.customers_mv
 WHERE "CreateTime" >= :start_date

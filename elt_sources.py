@@ -131,8 +131,9 @@ def _create_resource(table_name: str, file_path: str, config: dict):
         else:
             print(f"  {table_name}: {total_rows} rows (no incremental column)")
 
-        # Yield rows as dicts
+        # Yield rows as dicts, converting NaT to None for proper NULL storage
         for _, row in df.iterrows():
-            yield row.to_dict()
+            record = row.to_dict()
+            yield {k: (None if pd.isna(v) else v) for k, v in record.items()}
 
     return table_data

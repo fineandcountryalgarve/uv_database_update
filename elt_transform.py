@@ -8,27 +8,62 @@ from app.utils.refresh_view import refresh_mv
 from database.elt_config import TABLE_CONFIG
 
 
-def _get_raw_columns(conn, table_name: str) -> tuple[list[str], list[str]]:
+def _get_column_expressions(conn, table_name: str) -> tuple[str, str]:
     """
-    Query raw table columns from information_schema and split into
-    data columns and dlt internal columns.
+    Query raw and bronze column types and build INSERT/SELECT expressions.
+    Quotes all column names to handle reserved words (e.g. "user").
+    Adds CAST for columns where raw type differs from bronze type
+    (e.g. dlt stores as varchar when all values are null, but bronze expects timestamp).
 
     Returns:
-        (data_columns, dlt_columns) — both sorted alphabetically within their group.
+        (insert_cols, select_exprs) — quoted column list and SELECT expressions with casts.
     """
-    result = conn.execute(
+    # Get raw columns and types
+    raw_result = conn.execute(
         text("""
-            SELECT column_name
+            SELECT column_name, data_type
             FROM information_schema.columns
             WHERE table_schema = 'raw' AND table_name = :table_name
             ORDER BY ordinal_position
         """),
         {"table_name": table_name},
     )
-    all_cols = [row[0] for row in result]
+    raw_types = {row[0]: row[1] for row in raw_result}
+
+    # Get bronze column types for comparison
+    bronze_result = conn.execute(
+        text("""
+            SELECT column_name, data_type
+            FROM information_schema.columns
+            WHERE table_schema = 'bronze' AND table_name = :table_name
+            ORDER BY ordinal_position
+        """),
+        {"table_name": table_name},
+    )
+    bronze_types = {row[0]: row[1] for row in bronze_result}
+
+    # Split into data and dlt columns, skip unnamed
+    all_cols = list(raw_types.keys())
     data_cols = [c for c in all_cols if not c.startswith("_dlt_") and not c.startswith("unnamed")]
     dlt_cols = [c for c in all_cols if c.startswith("_dlt_")]
-    return data_cols, dlt_cols
+    ordered_cols = data_cols + dlt_cols
+
+    # Only include columns that exist in both raw and bronze
+    ordered_cols = [c for c in ordered_cols if c in bronze_types]
+
+    insert_cols = ", ".join(f'"{c}"' for c in ordered_cols)
+
+    select_parts = []
+    for col in ordered_cols:
+        raw_type = raw_types[col]
+        bronze_type = bronze_types.get(col, raw_type)
+        if raw_type != bronze_type:
+            select_parts.append(f'CAST("{col}" AS {bronze_type}) AS "{col}"')
+        else:
+            select_parts.append(f'"{col}"')
+    select_exprs = ", ".join(select_parts)
+
+    return insert_cols, select_exprs
 
 
 def transform_to_bronze() -> dict:
@@ -50,6 +85,8 @@ def transform_to_bronze() -> dict:
     print("Transforming raw -> bronze...")
     print("=" * 50)
 
+    kill_stale_sessions(engine)
+
     for table_name, config in TABLE_CONFIG.items():
         strategy = config["write_disposition"]
         primary_key = config["primary_key"]
@@ -67,24 +104,25 @@ def transform_to_bronze() -> dict:
                     results[table_name] = {"status": "skipped", "rows": 0}
                     continue
 
-                kill_stale_sessions(engine)
-
-                # Get columns: data first, _dlt_ at the end
-                data_cols, dlt_cols = _get_raw_columns(conn, table_name)
-                select_cols = ", ".join(data_cols + dlt_cols)
+                # Get columns: data first, _dlt_ at the end, with quoting and casts
+                insert_cols, select_exprs = _get_column_expressions(conn, table_name)
 
                 if strategy == "merge" and primary_key:
                     # MERGE: Delete existing keys, then insert all from raw
+                    pk_cols = primary_key if isinstance(primary_key, list) else [primary_key]
+                    join_condition = " AND ".join(
+                        f'bronze.{table_name}."{col}" = raw.{table_name}."{col}"'
+                        for col in pk_cols
+                    )
                     conn.execute(text(f"""
                         DELETE FROM bronze.{table_name}
-                        WHERE {primary_key} IN (
-                            SELECT {primary_key} FROM raw.{table_name}
-                        )
+                        USING raw.{table_name}
+                        WHERE {join_condition}
                     """))
 
                     conn.execute(text(f"""
-                        INSERT INTO bronze.{table_name} ({select_cols})
-                        SELECT {select_cols} FROM raw.{table_name}
+                        INSERT INTO bronze.{table_name} ({insert_cols})
+                        SELECT {select_exprs} FROM raw.{table_name}
                     """))
 
                     print(f"  {table_name}: merged {raw_count} rows (by {primary_key})")
@@ -92,8 +130,8 @@ def transform_to_bronze() -> dict:
                 else:
                     # APPEND: Insert all rows from raw
                     conn.execute(text(f"""
-                        INSERT INTO bronze.{table_name} ({select_cols})
-                        SELECT {select_cols} FROM raw.{table_name}
+                        INSERT INTO bronze.{table_name} ({insert_cols})
+                        SELECT {select_exprs} FROM raw.{table_name}
                     """))
 
                     print(f"  {table_name}: appended {raw_count} rows")

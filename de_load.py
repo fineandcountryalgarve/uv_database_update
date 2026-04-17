@@ -2,14 +2,28 @@ import pandas as pd
 import subprocess
 import os
 from datetime import datetime
+from pathlib import Path
+from sqlalchemy import text
+from google.oauth2 import service_account
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaFileUpload
 from app.utils.db_engine import get_engine, kill_stale_sessions
 from app.utils.get_base_path import get_base_path
 from app.utils.bq_pandas_helper import upload_df_to_bq
-from app.utils.gdrive import upload_file_to_drive, find_file_in_folder
 from app.utils.drive_folders import get_folder_id
 from app import config
-from pathlib import Path
-from sqlalchemy import text
+
+_WRITER_KEY_DOCKER = Path("/keys/fc-pipeline-writer.json")
+_WRITER_KEY_LOCAL = Path(__file__).parent.parent / "keys" / "fc-pipeline-writer.json"
+
+
+def _get_writer_drive_service():
+    key_path = _WRITER_KEY_DOCKER if _WRITER_KEY_DOCKER.exists() else _WRITER_KEY_LOCAL
+    creds = service_account.Credentials.from_service_account_file(
+        str(key_path),
+        scopes=["https://www.googleapis.com/auth/drive.file"],
+    )
+    return build("drive", "v3", credentials=creds)
 
 base_path = get_base_path()
 
@@ -172,12 +186,12 @@ def backup_database_to_drive(folder_id=None):
 
         # Upload to Google Drive
         print(f"📤 Uploading backup to Google Drive...")
-        uploaded = upload_file_to_drive(
-            local_path=str(local_dump_path),
-            filename=dump_filename,
-            mimetype="application/sql",
-            parent_folder_id=folder_id
-        )
+        drive_service = _get_writer_drive_service()
+        file_metadata = {"name": dump_filename, "parents": [folder_id]}
+        media = MediaFileUpload(str(local_dump_path), mimetype="application/sql", resumable=True)
+        uploaded = drive_service.files().create(
+            body=file_metadata, media_body=media, fields="id, name"
+        ).execute()
 
         print(f"✅ Backup uploaded to Google Drive: {dump_filename}")
 

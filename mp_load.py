@@ -8,7 +8,12 @@ import hashlib
 import time
 import pandas as pd
 from datetime import datetime
+from pathlib import Path
 from app.utils.gsheets import append_df_to_gsheet
+
+_WRITER_KEY_DOCKER = Path("/keys/fc-pipeline-writer.json")
+_WRITER_KEY_LOCAL = Path(__file__).parent.parent / "keys" / "fc-pipeline-writer.json"
+_WRITER_KEY = _WRITER_KEY_DOCKER if _WRITER_KEY_DOCKER.exists() else _WRITER_KEY_LOCAL
 from app.utils.mailchimp_helper import (
     get_base_url,
     get_api_key,
@@ -139,7 +144,8 @@ def load_unsubscribed_to_google_sheets(df: pd.DataFrame) -> bool:
             sheet_id=sheet_id,
             worksheet_name=worksheet_name,
             include_headers=True,
-            create_if_missing=True
+            create_if_missing=True,
+            key_path=_WRITER_KEY,
         )
         
         print(f"✅ Unsubscribed data successfully written to Google Sheet tab: {worksheet_name}")

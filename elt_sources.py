@@ -1,53 +1,15 @@
 """
 dlt source definition for Fine & Country CRM data.
 Reads Excel files downloaded from Google Drive and yields incremental data.
-Uses metadata.etl_run_log to seed the initial cursor for first runs.
+dlt manages its own cursor state in BigQuery (_dlt_pipeline_state table).
 """
 import re
 import dlt
 import pandas as pd
 from typing import Iterator, Any
-from sqlalchemy import text
 from database.elt_config import TABLE_CONFIG
-from app.utils.db_engine import get_engine
 
 DEFAULT_INITIAL_VALUE = pd.Timestamp("1900-01-01")
-
-
-def get_last_filter_end(table_name: str) -> pd.Timestamp:
-    """
-    Query metadata.etl_run_log for the last successful filter_end
-    for a given table. This seeds dlt's initial_value so the first
-    ELT run doesn't re-import rows already in bronze.
-
-    Returns:
-        pd.Timestamp, or DEFAULT_INITIAL_VALUE if no record exists.
-    """
-    engine = get_engine()
-    try:
-        with engine.connect() as conn:
-            result = conn.execute(
-                text("""
-                    SELECT filter_end
-                    FROM metadata.etl_run_log
-                    WHERE table_name = :table_name
-                      AND status = 'success'
-                      AND filter_end IS NOT NULL
-                    ORDER BY run_completed_at DESC
-                    LIMIT 1
-                """),
-                {"table_name": table_name},
-            )
-            row = result.fetchone()
-            if row and row[0]:
-                value = pd.Timestamp(row[0])
-                print(f"  {table_name}: seeded from metadata (filter_end={value})")
-                return value
-    except Exception as e:
-        print(f"  {table_name}: could not read metadata ({e}), using default")
-
-    print(f"  {table_name}: no metadata found, using {DEFAULT_INITIAL_VALUE}")
-    return DEFAULT_INITIAL_VALUE
 
 
 @dlt.source(name="finecountry_crm")
@@ -76,15 +38,12 @@ def _create_resource(table_name: str, file_path: str, config: dict):
     """
     Create a dlt resource for a specific table.
     Uses incremental loading based on timestamp column.
-    Seeds initial_value from metadata.etl_run_log if available.
+    Initial value defaults to 1900-01-01 on first run; dlt state takes over from there.
     """
     incremental_col = config["incremental_column"]
     primary_key = config["primary_key"]
     write_disposition = config["write_disposition"]
     date_columns = set(config.get("date_columns", []))
-
-    # Seed from metadata for first dlt run, fall back to 1900-01-01
-    initial_value = get_last_filter_end(table_name)
 
     @dlt.resource(
         name=table_name,
@@ -94,7 +53,7 @@ def _create_resource(table_name: str, file_path: str, config: dict):
     def table_data(
         last_value=dlt.sources.incremental(
             incremental_col,
-            initial_value=initial_value,
+            initial_value=DEFAULT_INITIAL_VALUE,
         )
     ) -> Iterator[dict[str, Any]]:
         """

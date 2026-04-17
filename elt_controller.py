@@ -3,7 +3,7 @@ ELT Controller: Orchestrates the extract, load, and transform pipeline.
 """
 from database.elt_extract import stage_inputs
 from database.de_load import cleanup_tmp_folder
-from database.elt_load import load_to_raw
+from database.elt_load import load_to_bronze
 from database.elt_transform import transform_to_bronze, refresh_gold_views
 
 
@@ -30,7 +30,7 @@ def elt_load(file_mapping: dict) -> dict:
     Returns:
         dict: Load results
     """
-    result = load_to_raw(file_mapping)
+    result = load_to_bronze(file_mapping)
     cleanup_tmp_folder()
     return result
 

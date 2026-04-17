@@ -2,12 +2,17 @@
 Extract module for Mailchimp ETL pipeline.
 Refreshes materialized view and extracts raw customer data from PostgreSQL.
 """
+from pathlib import Path
 from sqlalchemy import text
 import pandas as pd
 from app.utils.refresh_view import refresh_mv
 from app.utils.db_engine import get_engine
 from app.utils.gsheets import read_gsheet_to_df
 from app.utils.gsheets_worksheets import get_gsheets_id
+
+_READER_KEY_DOCKER = Path("/keys/fc-pipeline-reader.json")
+_READER_KEY_LOCAL = Path(__file__).parent.parent / "keys" / "fc-pipeline-reader.json"
+_READER_KEY = _READER_KEY_DOCKER if _READER_KEY_DOCKER.exists() else _READER_KEY_LOCAL
 
 def refresh_materialized_view(view_name: str) -> bool:
     """
@@ -48,9 +53,9 @@ def extract_pre_enquiries(start_date, end_date) -> pd.DataFrame | None:
         # Read both sheets
         properties_id = get_gsheets_id("fb_properties")
         print("\n📋 Extracting pre-enquiries from Google Sheets...")
-        df_pre_enquiries = read_gsheet_to_df(properties_id, "featured_property")
-        df_pre_enquiries_2 = read_gsheet_to_df(properties_id, "no_viewing")
-        df_pre_enquiries_3 = read_gsheet_to_df(properties_id, "viewing")
+        df_pre_enquiries = read_gsheet_to_df(properties_id, "featured_property", key_path=_READER_KEY)
+        df_pre_enquiries_2 = read_gsheet_to_df(properties_id, "no_viewing", key_path=_READER_KEY)
+        df_pre_enquiries_3 = read_gsheet_to_df(properties_id, "viewing", key_path=_READER_KEY)
         
         # Combine both dataframes
         fb_list = [df_pre_enquiries, df_pre_enquiries_2, df_pre_enquiries_3]

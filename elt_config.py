@@ -14,8 +14,8 @@ from datetime import datetime
 TABLE_CONFIG = {
     "crm_properties": {
         "incremental_column": "last_change",
-        "primary_key": ["reference", "last_change"],
-        "write_disposition": "merge",
+        "primary_key": ["id", "last_change"],
+        "write_disposition": "append",
         "year_partitioned": False,
         "date_columns": ["create_date", "last_change", "publish_date"],
     },
@@ -43,7 +43,7 @@ TABLE_CONFIG = {
     "crm_leads": {
         "incremental_column": "lastupdate",
         "primary_key": ["eventid", "lastupdate"],
-        "write_disposition": "merge",
+        "write_disposition": "append",
         "year_partitioned": True,
         "date_columns": ["createdate", "startdate", "enddate", "lastupdate"],
     },

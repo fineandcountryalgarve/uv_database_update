@@ -1,6 +1,6 @@
 """
 ELT Transform: Transforms data from raw schema to bronze schema.
-Handles merge (upsert) for properties, append for other tables.
+Handles append for all tables. Deduplication is handled in the silver layer.
 """
 from sqlalchemy import text
 from app.utils.db_engine import get_engine, kill_stale_sessions
@@ -70,8 +70,7 @@ def transform_to_bronze() -> dict:
     """
     Transform data from raw schema to bronze schema.
 
-    - Properties/Leads: MERGE (delete existing keys, insert new)
-    - Others: APPEND (insert all, silver handles deduplication)
+    - All tables: APPEND (insert all, silver handles deduplication)
 
     Selects explicit columns from raw, with _dlt_ columns at the end.
 
